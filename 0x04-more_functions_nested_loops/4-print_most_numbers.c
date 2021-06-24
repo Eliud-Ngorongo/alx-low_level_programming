@@ -6,13 +6,10 @@
  */
 void print_most_numbers(void)
 {
-int i = 0;
-char s;
-char c[] = "01356789\n";
-while (i < 9)
+int i;
+for (i = 48; i < 57; i++)
 {
-s = c[i];
-_putchar(c);
-i++;
+if (i != 50 && i != 52)
+_putchar(i);
 }
 }
