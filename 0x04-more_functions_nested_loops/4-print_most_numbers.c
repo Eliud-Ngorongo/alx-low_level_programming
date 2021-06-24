@@ -6,7 +6,13 @@
  */
 void print_most_numbers(void)
 {
-char c[8] ("01356789");
+int i = 0;
+char s;
+char c[] = "01356789\n";
+while (i < 9)
+{
+s = c[i];
 _putchar(c);
-_putchar('\n');
+i++;
+}
 }
