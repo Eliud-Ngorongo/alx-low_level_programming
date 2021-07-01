@@ -5,7 +5,7 @@
  * @dest: string to append by src
  * @src: string to append to dest
  *
- * Return: Pointer of dest
+ * Return: Pointer of dest	
  */
 
 
@@ -15,7 +15,7 @@ int i, j;
 i = j = 0;
 while (*(dest + i))
 i++;
-while ((*(dest + i)) = (*(src + j)))
+while ((*(dest + i)) = *(src + j)))
 i++;
 j++;
 return (dest);
