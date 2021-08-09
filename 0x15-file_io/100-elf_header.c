@@ -1,5 +1,6 @@
+#define _POSIX_C_SOURCE 200809L
+#include <elf.h>
 #include <stdio.h>
-#include "main.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -7,70 +8,151 @@
 #include <stdlib.h>
 
 /**
- * __exit - prints error messages and exits with exit value
- * @error: num is either exit value or file descriptor
- * @s: str is a name, either of the two filenames
- * @fd: file descriptor
- * Return: 0 on success
- **/
-int __exit(int error, char *s, int fd)
+ * read_error - function that exits the program
+ * @argv: argument
+ * Return: void
+ */
+
+void read_error(char *argv)
 {
-	switch (error)
+	dprintf(STDERR_FILENO, "Error: Can't read from file %s\n", argv);
+	exit(98);
+}
+/**
+ * check_elf - function that checks the format of the file, prints magic num
+ * @header: pointer to the ELF header struct
+ * Return: void
+ */
+void check_elf(Elf64_Ehdr *header)
+{
+	int i = 0;
+
+	if (header->e_ident[EI_MAG0] == 0x7f &&
+	    header->e_ident[EI_MAG1] == 'E' &&
+	    header->e_ident[EI_MAG2] == 'L' &&
+	    header->e_ident[EI_MAG3] == 'F')
 	{
-	case 97:
-		dprintf(STDERR_FILENO, "Usage: cp file_from file_to\n");
-		exit(error);
-	case 98:
-		dprintf(STDERR_FILENO, "Error: Can't read from file %s\n", s);
-		exit(error);
-	case 99:
-		dprintf(STDERR_FILENO, "Error: Can't write to %s\n", s);
-		exit(error);
-	case 100:
-		dprintf(STDERR_FILENO, "Error: Can't close fd %d\n", fd);
-		exit(error);
-	default:
-		return (0);
+		printf("ELF Header:\n");
+		printf("  Magic:  ");
+
+		for (i = 0; i < 16; i++)
+			printf(" %02x", header->e_ident[i]);
+		printf("\n");
+	}
+	else
+	{
+		dprintf(STDERR_FILENO, "Format error, not an ELF\n");
+		exit(98);
 	}
 }
 
 /**
- * main - copies one file to another
- * @argc: should be 3 (./a.out copyfromfile copytofile)
- * @argv: first is file to copy from (fd_1), second is file to copy to (fd_2)
- * Return: 0 (success), 97-100 (exit value errors)
+ * check_class - function that checks the class of ELF format of the file
+ * @header: pointer to the ELF header struct
+ * Return: void
  */
-int main(int argc, char *argv[])
+void check_class(Elf64_Ehdr *header)
 {
-	int fd_1, fd_2, n_read, n_wrote;
-	char *buffer[1024];
+	if (header->e_ident[EI_CLASS] == ELFCLASS32)
+		printf("  Class:                             ELF32\n");
+	if (header->e_ident[EI_CLASS] == ELFCLASS64)
+		printf("  Class:                             ELF64\n");
+}
 
-	if (argc != 3)
-		__exit(97, NULL, 0);
+/**
+ * check_data_ver - function that checks the data and version of ELF
+ * @header: pointer to the ELF header struct
+ * Return: void
+ */
+void check_data_ver(Elf64_Ehdr *header)
+{
+	if (header->e_ident[EI_DATA] == ELFDATA2LSB)
+		puts("  Data:                              2's complement, little endian");
+	if (header->e_ident[EI_DATA] == ELFDATA2MSB)
+		printf("  Data:                              2's complement, big endian\n");
+	if (header->e_ident[EI_VERSION] != 1)
+		printf("  Version:                           1\n");
+	if (header->e_ident[EI_VERSION] == 1)
+		printf("  Version:                           1 (current)\n");
+	if (header->e_ident[EI_OSABI] == ELFOSABI_NONE)
+		printf("  OS/ABI:                            UNIX - System V\n");
+	else if (header->e_ident[EI_OSABI] == ELFOSABI_SYSV)
+		printf("  OS/ABI:                            UNIX - System V\n");
+	if (header->e_ident[EI_OSABI] == ELFOSABI_NETBSD)
+		printf("  OS/ABI:                            UNIX - NetBSD\n");
+	if (header->e_ident[EI_OSABI] == ELFOSABI_SOLARIS)
+		printf("  OS/ABI:                            UNIX - Solaris\n");
+	if (header->e_ident[EI_OSABI] == 0x53)
+		printf("  OS/ABI:                            <unknown: 53>\n");
+	if (header->e_ident[EI_ABIVERSION] == 0)
+		printf("  ABI Version:                       0\n");
+	if (header->e_ident[EI_ABIVERSION] == 1)
+		printf("  ABI Version:                       1\n");
+}
 
-	/*sets file descriptor for copy-to file*/
-	fd_2 = open(argv[2], O_CREAT | O_TRUNC | O_WRONLY, 0664);
-	if (fd_2 == -1)
-		__exit(99, argv[2], 0);
+/**
+ * check_type - function that checks the type of ELF file
+ * @header: pointer to the ELF header struct
+ * Return: void
+ */
+void check_type(Elf64_Ehdr *header)
+{
+	if (header->e_type == ET_EXEC)
+		printf("  Type:                              EXEC (Executable file)\n");
+	if (header->e_type == ET_NONE)
+		printf("  Type:                              Unknown type\n");
+}
 
-	/*sets file descriptor for copy-from file*/
-	fd_1 = open(argv[1], O_RDONLY);
-	if (fd_1 == -1)
-		__exit(98, argv[1], 0);
+/**
+ * check_entry - function that checks the type of ELF file
+ * @header: pointer to the ELF header struct
+ * Return: void
+ */
+void check_entry(Elf64_Ehdr *header)
+{
+	if (header->e_entry)
+		printf("  Entry point address:               0x%x\n", (int)header->e_entry);
+	else
+		printf("  Entry point address:               0\n");
+}
 
-	/*reads original file as long as there's more than 0 to read*/
-	/*copies/writes contents into new file */
-	while ((n_read = read(fd_1, buffer, 1024)) != 0)
+/**
+ * main - program that prints ELF header formated
+ * @argc: number of arguments passed to the program
+ * @argv: string containing of the program and the ELF file
+ * Return: 0 on success
+ */
+
+int main(int argc, char **argv)
+{
+	int fd64, read_char = 1;
+	Elf64_Ehdr *header, size;
+
+	if (argc != 2)
 	{
-		if (n_read == -1)
-			__exit(98, argv[1], 0);
-
-		n_wrote = write(fd_2, buffer, n_read);
-		if (n_wrote == -1)
-			__exit(99, argv[2], 0);
+		printf("Usage: elf_header elf_filename\n");
+		exit(98);
 	}
 
-	close(fd_2) == -1 ? (__exit(100, NULL, fd_2)) : close(fd_2);
-	close(fd_1) == -1 ? (__exit(100, NULL, fd_1)) : close(fd_1);
+	header = malloc(sizeof(size));
+	if (!header)
+		exit(98);
+
+	fd64 = open(argv[1], O_RDONLY);
+	if (fd64 < 0)
+		read_error(argv[1]);
+
+	read_char = read(fd64, header, sizeof(size));
+	if (read_char < 0)
+		read_error(argv[1]);
+
+	check_elf(header);
+	check_class(header);
+	check_data_ver(header);
+	check_type(header);
+	check_entry(header);
+
+	free(header);
+	close(fd64);
 	return (0);
 }
